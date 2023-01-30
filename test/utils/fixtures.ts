@@ -1,5 +1,5 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
-import { ethers } from "hardhat"
+import { ethers, upgrades } from "hardhat"
 import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../../typechain-types"
 import { MerkleTree } from "merkletreejs"
 import keccak256 from "keccak256"
@@ -28,15 +28,18 @@ export async function deployEcoID(): Promise<[EcoTest, EcoID]> {
   const eco = await EcoTest.deploy("Eco", "Eco", amount)
   await eco.deployed()
 
-  const EcoID = await ethers.getContractFactory("EcoID")
-  const ecoID = await EcoID.deploy(eco.address)
-  await ecoID.deployed()
+  const EcoIDContract = await ethers.getContractFactory("EcoID")
+  const ecoIDProxy = await upgrades.deployProxy(EcoIDContract, [eco.address], {
+    initializer: "initialize",
+  })
+  await ecoIDProxy.deployed()
+
   // @ts-ignore
-  return [eco, ecoID]
+  return [eco, ecoIDProxy]
 }
 
 /**
- * Deploys the {@link EcoID} and support {@link ERC20} with {@link deployEcoID}, and then the {@link EcoClaim} contract
+ * Deploys the {@link EcoID} and support ERC20 with {@link deployEcoID}, and then the {@link EcoClaim} contract
  *
  * @return All the contracts and the merkeltree and its constituents
  */
@@ -76,18 +79,26 @@ export async function deployEcoClaim(
   })
   const root = tree.getHexRoot()
 
-  const EcoClaim = await ethers.getContractFactory("EcoClaim")
-  const claim = await EcoClaim.deploy(
-    eco.address,
+  const EcoClaimContract = await ethers.getContractFactory("EcoClaim")
+  const ecoClaimProxy = await upgrades.deployProxy(EcoClaimContract, [eco.address,
     ecoX.address,
     ecoID.address,
     trustedVerifier.address,
     root,
-    tree.getDepth()
-  )
-  await claim.deployed()
-  // @ts-ignore
-  return [eco, ecoX, ecoID, claim, balancedLeaves, tree, root]
+    tree.getDepth()], {
+    initializer: "initialize",
+  })
+  // const claim = await EcoClaim.deploy(
+  //   eco.address,
+  //   ecoX.address,
+  //   ecoID.address,
+  //   trustedVerifier.address,
+  //   root,
+  //   tree.getDepth()
+  // )
+  await ecoClaimProxy.deployed()
+  // // @ts-ignore
+  return [eco, ecoX as EcoXTest, ecoID, ecoClaimProxy as EcoClaim, balancedLeaves, tree, root]
 }
 
 /**

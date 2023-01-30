@@ -195,32 +195,7 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
      * 2.5x ECOx + 5x ECO at 18 mos / 540 days after initial claim
      * 3.5x ECOx + 5x ECO at 24 mos / 720 days after initial claim
      */
-    uint256[24] public _vestedMultiples = [
-        5,
-        5,
-        5,
-        5,
-        5,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        25,
-        25,
-        25,
-        25,
-        25,
-        25,
-        35
-    ];
+    uint256[24] public _vestedMultiples;
 
     /**
      * The divider for calculating the ECOx vesting returns
@@ -235,13 +210,12 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     /**
      * The time that the contract is deployed
      */
-    uint256 public _deployTimestamp = block.timestamp;
+    uint256 public _deployTimestamp;
 
     /**
      * The time that a user can claim their eco
      */
-    uint256 public _claimableEndTime =
-        block.timestamp + CLAIMABLE_PERIOD;
+    uint256 public _claimableEndTime;
 
     /**
      * The conversion coefficient for when we calculate how much ecox a participant is entitled to for every eco during the initial claim.
@@ -292,6 +266,35 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         _pointsMerkleRoot = merkelRoot;
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
+
+        _deployTimestamp = block.timestamp;
+        _claimableEndTime = block.timestamp + CLAIMABLE_PERIOD;
+        _vestedMultiples = [
+            5,
+            5,
+            5,
+            5,
+            5,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            25,
+            25,
+            25,
+            25,
+            25,
+            25,
+            35
+        ];
 
         emit InitializeEcoClaim();
     }
