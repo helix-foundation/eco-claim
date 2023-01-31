@@ -42,6 +42,11 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     );
 
     /**
+     * Event for when a contract is paused and funds cannot be moved
+     */
+    event Paused(bool isPaused);
+
+    /**
      * Error for when the a signature has expired
      */
     error SignatureExpired();
@@ -80,6 +85,11 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
      * Error for when a user tries to claim tokens for a given social id, that have already been claimed
      */
     error TokensAlreadyClaimed();
+
+    /**
+     * Error for when a user tries to claim tokens but the contract is paused
+     */
+    error ClaimsPaused();
 
     /**
      * The hash of the register function signature for the recipient
@@ -139,6 +149,11 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     /**
      * The trusted verifier for the socialIDs in the EcoID contract
      */
+    bool public _isPaused;
+
+    /**
+     * The trusted verifier for the socialIDs in the EcoID contract
+     */
     address public _trustedVerifier;
 
     /**
@@ -171,6 +186,7 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         bytes32 merkelRoot,
         uint256 proofDepth
     ) public initializer {
+        OwnableUpgradeable.__Ownable_init();
         EIP712Upgradeable.__EIP712_init("EcoClaim", "1");
         _eco = eco;
         _ecoX = ecoX;
@@ -245,6 +261,14 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     }
 
     /**
+     * Sets whether is contract is in a paused state that blocks claims
+     */
+    function setPaused(bool paused) external onlyOwner {
+        _isPaused = paused;
+        emit Paused(_isPaused);
+    }
+
+    /**
      * Makes the _domainSeparatorV4() function externally callable for signature generation
      */
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
@@ -268,6 +292,11 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         address recipient,
         uint256 feeAmount
     ) internal {
+        //Checks that the claims aren't paused
+        if (_isPaused) {
+            revert ClaimsPaused();
+        }
+
         //Checks that the social id has not claimed its tokens
         if (_claimedBalances[socialID]) {
             revert TokensAlreadyClaimed();

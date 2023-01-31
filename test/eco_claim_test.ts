@@ -8,7 +8,6 @@ import keccak256 from "keccak256"
 import { claimElements, deployEcoClaim, nextPowerOf2 } from "./utils/fixtures"
 import { increase, latestBlockTimestamp } from "./utils/time"
 import { ClaimElement, MerkelLeaves } from "./utils/types"
-import { fail } from "assert"
 
 describe("EcoClaim tests", async function () {
   let owner: SignerWithAddress,
@@ -112,8 +111,16 @@ describe("EcoClaim tests", async function () {
           ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
         })
 
-        it("should fail when the contract is frozen", async function () {
-          fail("todo")
+        it("should fail when non-owner tries to change the pause state of the contract", async function () {
+          await expect(claim.connect(addr0).setPaused(true)).to.be.revertedWith(
+            "Ownable: caller is not the owner"
+          )
+        })
+
+        it("should should emit an event when contract is paused", async function () {
+          await expect(claim.connect(owner).setPaused(true))
+            .to.emit(claim, "Paused")
+            .withArgs(true)
         })
 
         it("should fail when we claim zero points", async function () {
@@ -127,6 +134,15 @@ describe("EcoClaim tests", async function () {
           beforeEach(async function () {
             await eco.transfer(claim.address, 2000)
             await ecoX.transfer(claim.address, 1000)
+          })
+
+          it("should fail when the contract is paused", async function () {
+            await claim.connect(owner).setPaused(true)
+
+            const proof = tree.getHexProof(leaves[0])
+            await expect(
+              claim.connect(addr0).claimTokens(proof, socialID, points)
+            ).to.be.revertedWith("ClaimsPaused()")
           })
 
           it("should succeed when the proof and leaf match and emit an event", async function () {
