@@ -167,43 +167,6 @@ export async function signClaimTypeMessage(
 }
 
 /**
- * Creates the signature for the releaseTokensOnBehalf contract call
- *
- * @param socialID the social id of the claim
- * @param recipient the address that recieves the funds
- * @param feeAmount the fee the user pays the msg.sender
- * @param deadline the expiration of the signature
- * @param nonce the nonce of the signature
- * @param chainID the chain id of the contract
- * @param contractAddress the address of the contract
- * @returns the signature
- */
-export async function signReleaseTypeMessage(
-  socialID: string,
-  recipient: SignerWithAddress,
-  feeAmount: number,
-  deadline: number,
-  nonce: number,
-  chainID: number,
-  contractAddress: string
-): Promise<string> {
-  const typeDataApprove = releaseTypeMessage(
-    socialID,
-    recipient,
-    feeAmount,
-    deadline,
-    nonce,
-    chainID,
-    contractAddress
-  )
-  return await recipient._signTypedData(
-    typeDataApprove.domain,
-    typeDataApprove.types,
-    typeDataApprove.value
-  )
-}
-
-/**
  * Creates the typed message for signing for the register EcoID call
  *
  * @param claim the claim to unregister verifier from
@@ -418,70 +381,6 @@ function claimTypeMessage(
     domain,
     types: {
       Claim: [
-        {
-          name: "socialID",
-          type: "string",
-        },
-        {
-          name: "recipient",
-          type: "address",
-        },
-        {
-          name: "feeAmount",
-          type: "uint256",
-        },
-        {
-          name: "deadline",
-          type: "uint256",
-        },
-        {
-          name: "nonce",
-          type: "uint256",
-        },
-      ],
-    },
-    value: {
-      socialID,
-      recipient: recipient.address,
-      feeAmount,
-      deadline,
-      nonce,
-    },
-  }
-}
-
-/**
- * Creates the typed message for signing for the releaseTokensOnBehalf contract call
- *
- * @param socialID the social id of the claim
- * @param recipient the recipient of the released funds
- * @param feeAmount the fee that is being paid to the msg.sender
- * @param deadline the expiration time of the signature
- * @param nonce the nonce of this signature
- * @param chainID the chain id of the contract
- * @param contractAddress the address of the contract
- * @returns typed message for signing
- */
-function releaseTypeMessage(
-  socialID: string,
-  recipient: SignerWithAddress,
-  feeAmount: number,
-  deadline: number,
-  nonce: number,
-  chainID: number,
-  contractAddress: string
-): TypeData {
-  const domain = {
-    name: "EcoClaim",
-    version: "1",
-    chainId: chainID,
-    verifyingContract: contractAddress,
-  }
-
-  return {
-    domain,
-    types: {
-      Release: [
         {
           name: "socialID",
           type: "string",
