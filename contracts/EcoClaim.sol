@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
-import "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@helix-foundation/eco-id/contracts/EcoID.sol";
 import "@helix-foundation/eco-id/contracts/interfaces/IECO.sol";
 
-contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
+contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     /**
      * Use for validating merkel proof of claims for tokens
      */
-    using MerkleProof for bytes32[];
+    using MerkleProofUpgradeable for bytes32[];
 
     /**
      * Use for signarture recovery and verification on token claiming
@@ -150,13 +150,13 @@ contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
     /**
      * The merkel root for the data that maps social ids to their points distribution
      */
-    bytes32 public immutable _pointsMerkleRoot;
+    bytes32 public _pointsMerkleRoot;
 
     /**
      * The depth of the merkel tree from root to leaf. We use this to verify the length of the
      * proofs submitted for verifiaction
      */
-    uint256 public immutable _proofDepth;
+    uint256 public _proofDepth;
 
     /**
      * The mapping that stores the claim status for an account
@@ -176,17 +176,17 @@ contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
     /**
      * The eco ERC20 contract
      */
-    IECO public immutable _eco;
+    IECO public _eco;
 
     /**
      * The ecoX ERC20 contract
      */
-    ERC20 public immutable _ecoX;
+    ERC20Upgradeable public _ecoX;
 
     /**
      * The EcoID contract
      */
-    EcoID public immutable _ecoID;
+    EcoID public _ecoID;
 
     /**
      * The vesting multiples that users generate over time
@@ -195,32 +195,7 @@ contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
      * 2.5x ECOx + 5x ECO at 18 mos / 540 days after initial claim
      * 3.5x ECOx + 5x ECO at 24 mos / 720 days after initial claim
      */
-    uint256[24] public _vestedMultiples = [
-        5,
-        5,
-        5,
-        5,
-        5,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        15,
-        25,
-        25,
-        25,
-        25,
-        25,
-        25,
-        35
-    ];
+    uint256[24] public _vestedMultiples;
 
     /**
      * The divider for calculating the ECOx vesting returns
@@ -235,13 +210,12 @@ contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
     /**
      * The time that the contract is deployed
      */
-    uint256 public immutable _deployTimestamp = block.timestamp;
+    uint256 public _deployTimestamp;
 
     /**
      * The time that a user can claim their eco
      */
-    uint256 public immutable _claimableEndTime =
-        block.timestamp + CLAIMABLE_PERIOD;
+    uint256 public _claimableEndTime;
 
     /**
      * The conversion coefficient for when we calculate how much ecox a participant is entitled to for every eco during the initial claim.
@@ -252,15 +226,23 @@ contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
     /**
      * The trusted verifier for the socialIDs in the EcoID contract
      */
-    address public immutable _trustedVerifier;
+    address public _trustedVerifier;
 
     /**
      * The inflation multiplier for eco at deploy, used to calculate payouts
      */
-    uint256 public immutable _initialInflationMultiplier;
+    uint256 public _initialInflationMultiplier;
 
     /**
-     * Constructor that sets the initial conditions and emits an initialization event
+     * Disable the implementation contract
+     */
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /**
+     * Proxy initializer that sets the initial conditions and emits an initialization event
      *
      * @param eco the address of the eco contract
      * @param ecoX the address of the ecox contract
@@ -268,14 +250,15 @@ contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
      * @param trustedVerifier the address of the trusted verifier for claims in the EcoID
      * @param merkelRoot the root of the merkle tree used to verify socialId and point distribution
      */
-    constructor(
+    function initialize(
         IECO eco,
-        ERC20 ecoX,
+        ERC20Upgradeable ecoX,
         EcoID ecoID,
         address trustedVerifier,
         bytes32 merkelRoot,
         uint256 proofDepth
-    ) {
+    ) public initializer {
+        EIP712Upgradeable.__EIP712_init("EcoClaim", "1");
         _eco = eco;
         _ecoX = ecoX;
         _ecoID = ecoID;
@@ -283,6 +266,35 @@ contract EcoClaim is Ownable, EIP712("EcoClaim", "1") {
         _pointsMerkleRoot = merkelRoot;
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
+
+        _deployTimestamp = block.timestamp;
+        _claimableEndTime = block.timestamp + CLAIMABLE_PERIOD;
+        _vestedMultiples = [
+            5,
+            5,
+            5,
+            5,
+            5,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            15,
+            25,
+            25,
+            25,
+            25,
+            25,
+            25,
+            35
+        ];
 
         emit InitializeEcoClaim();
     }
