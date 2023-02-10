@@ -42,17 +42,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     );
 
     /**
-     * Event for vesting release
-     */
-    event ReleaseVesting(
-        address indexed addr,
-        address indexed gasPayer,
-        uint256 ecoBalance,
-        uint256 vestedEcoXBalance,
-        uint256 feeAmount
-    );
-
-    /**
      * Error for when the a signature has expired
      */
     error SignatureExpired();
@@ -61,11 +50,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
      * Error for when the signature is invalid
      */
     error InvalidSignature();
-
-    /**
-     * Error for when the first claim is called after the claim period
-     */
-    error ClaimDeadlineExpired();
 
     /**
      * Error for when a claim has not been verified in the EcoID by the trusted verifier
@@ -93,33 +77,9 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     error InvalidPoints();
 
     /**
-     * Error for when the the caller of the release tokens is not the same as that stored in _claimBalances
-     */
-    error InvalidReleaseCaller();
-
-    /**
-     * Error for when the recipient is trying to release an empty balance
-     */
-    error EmptyVestingBalance();
-
-    /**
-     * Error for when the cliff date has not been reached yet and the user tries to release tokens
-     */
-    error CliffNotMet();
-
-    /**
      * Error for when a user tries to claim tokens for a given social id, that have already been claimed
      */
     error TokensAlreadyClaimed();
-
-    /**
-     * Struct for holding the claim fields for a user
-     */
-    struct ClaimBalance {
-        address recipient; //user's addres to send funds to
-        uint256 points; //user's initial point balance
-        uint256 claimTime; //timestamp of initial claim
-    }
 
     /**
      * The hash of the register function signature for the recipient
@@ -128,24 +88,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         keccak256(
             "Claim(string socialID,address recipient,uint256 feeAmount,uint256 deadline,uint256 nonce)"
         );
-
-    /**
-     * The hash of the register function signature for the recipient
-     */
-    bytes32 private constant RELEASE_TYPEHASH =
-        keccak256(
-            "Release(string socialID,address recipient,uint256 feeAmount,uint256 deadline,uint256 nonce)"
-        );
-
-    /**
-     * The period that we use to determine how much the user has vested in ECOx
-     */
-    uint256 public constant VESTING_PERIOD = 30 days;
-
-    /**
-     * The period that a user can claim any tokens
-     */
-    uint256 public constant CLAIMABLE_PERIOD = 356 days;
 
     /**
      * The merkel root for the data that maps social ids to their points distribution
@@ -162,11 +104,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
      * The mapping that stores the claim status for an account
      */
     mapping(string => bool) public _claimedBalances;
-
-    /**
-     * The mapping that stores the claim status for a social id
-     */
-    mapping(string => ClaimBalance) public _claimBalances;
 
     /**
      * The mapping that store the current nonce for a social id
@@ -189,33 +126,9 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     EcoID public _ecoID;
 
     /**
-     * The vesting multiples that users generate over time
-     * 0.5x ECOx + 5x ECO at 30 days after initial claim
-     * 1.5x ECOx + 5x ECO at 6 mos / 180 days after initial claim
-     * 2.5x ECOx + 5x ECO at 18 mos / 540 days after initial claim
-     * 3.5x ECOx + 5x ECO at 24 mos / 720 days after initial claim
-     */
-    uint256[24] public _vestedMultiples;
-
-    /**
-     * The divider for calculating the ECOx vesting returns
-     */
-    uint256 public constant VESTING_DIVIDER = 10;
-
-    /**
      * The multiplier for points to eco conversion
      */
     uint256 public constant POINTS_MULTIPLIER = 5;
-
-    /**
-     * The time that the contract is deployed
-     */
-    uint256 public _deployTimestamp;
-
-    /**
-     * The time that a user can claim their eco
-     */
-    uint256 public _claimableEndTime;
 
     /**
      * The conversion coefficient for when we calculate how much ecox a participant is entitled to for every eco during the initial claim.
@@ -266,35 +179,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         _pointsMerkleRoot = merkelRoot;
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
-
-        _deployTimestamp = block.timestamp;
-        _claimableEndTime = block.timestamp + CLAIMABLE_PERIOD;
-        _vestedMultiples = [
-            5,
-            5,
-            5,
-            5,
-            5,
-            15,
-            15,
-            15,
-            15,
-            15,
-            15,
-            15,
-            15,
-            15,
-            15,
-            15,
-            15,
-            25,
-            25,
-            25,
-            25,
-            25,
-            25,
-            35
-        ];
 
         emit InitializeEcoClaim();
     }
@@ -361,53 +245,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     }
 
     /**
-     * Releases the vested tokens if its passed the initial cliff date. The further from the initial cliff this
-     * method is called, the greater a multiple the recipients tokens generate.
-     */
-    function releaseTokens(string calldata socialID) external {
-        _releaseTokens(socialID, msg.sender, 0);
-    }
-
-    /**
-     * Releases the vested tokens if its passed the initial cliff date. The recipient is paying the caller of this contract
-     * and reward them in ecoX. The caller has to present a valid signature to release the funds
-     *
-     * @param socialID the socialID of the recipient
-     * @param recipient the recipient of the tokens
-     * @param feeAmount the fee in eco the payer is granted from the recipient
-     * @param deadline the time at which the signature is no longer valid
-     * @param recipientSig the signature signed by the recipient
-     */
-    function releaseTokensOnBehalf(
-        string calldata socialID,
-        address recipient,
-        uint256 feeAmount,
-        uint256 deadline,
-        bytes calldata recipientSig
-    ) external {
-        //the release signature is being called within its valid period
-        if (block.timestamp > deadline) {
-            revert SignatureExpired();
-        }
-
-        //the signature is properly signed
-        if (
-            !_verifyReleaseSigature(
-                socialID,
-                recipient,
-                feeAmount,
-                deadline,
-                _useNonce(socialID),
-                recipientSig
-            )
-        ) {
-            revert InvalidSignature();
-        }
-
-        _releaseTokens(socialID, recipient, feeAmount);
-    }
-
-    /**
      * Makes the _domainSeparatorV4() function externally callable for signature generation
      */
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
@@ -434,11 +271,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         //Checks that the social id has not claimed its tokens
         if (_claimedBalances[socialID]) {
             revert TokensAlreadyClaimed();
-        }
-
-        //the claim is submitted in the claimable window since contract deploy
-        if (block.timestamp > _claimableEndTime) {
-            revert ClaimDeadlineExpired();
         }
 
         //require that the proof length is the same as the merkel tree depth
@@ -492,11 +324,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     ) internal {
         uint256 ecoBalance = points * POINTS_MULTIPLIER;
         uint256 ecoXBalance = points / POINTS_TO_ECOX_RATIO;
-        //store the eco balance and time of the recipient so we can calculate vesting later
-        ClaimBalance storage cb = _claimBalances[socialID];
-        cb.recipient = recipient;
-        cb.points = points;
-        cb.claimTime = block.timestamp;
 
         //the fee is below the token amount
         if (feeAmount > ecoBalance) {
@@ -541,97 +368,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     }
 
     /**
-     * Releases the vested tokens if its passed the initial cliff date. The recipient can pay a payer for calling this contract
-     * and reward them in ecoX
-     *
-     * @param socialID the social ID of the claim
-     * @param recipient the recipient of the tokens
-     * @param feeAmount the fee in ecoX the payer is granted from the recipient
-     */
-    function _releaseTokens(
-        string calldata socialID,
-        address recipient,
-        uint256 feeAmount
-    ) internal {
-        uint256 currentTime = block.timestamp;
-        ClaimBalance storage cb = _claimBalances[socialID];
-        if (cb.recipient != recipient) {
-            revert InvalidReleaseCaller();
-        }
-        uint256 points = cb.points;
-        uint256 ecoBalance = points * POINTS_MULTIPLIER;
-
-        //the recipient has a balance
-        if (ecoBalance == 0) {
-            revert EmptyVestingBalance();
-        }
-
-        //the cliff time has been passed
-        if (cb.claimTime + VESTING_PERIOD > currentTime) {
-            revert CliffNotMet();
-        }
-
-        //calculating balances
-        uint256 currentInflationMult = _eco.getPastLinearInflation(
-            block.number
-        );
-        uint256 vestedBalance;
-
-        //find the vesting period the call is made in and distribute the funds
-        for (uint256 i = _vestedMultiples.length; i > 0; i--) {
-            if (currentTime > cb.claimTime + VESTING_PERIOD * i) {
-                vestedBalance =
-                    (points * _vestedMultiples[i - 1]) /
-                    VESTING_DIVIDER;
-                break;
-            }
-        }
-
-        //clear out recipients balance
-        cb.points = 0;
-        cb.claimTime = 0;
-
-        //transfer the balances
-        //transfer the ecox
-        _ecoX.transfer(recipient, vestedBalance);
-
-        //transfer the eco
-        if (feeAmount == 0) {
-            _eco.transfer(
-                recipient,
-                _applyInflationMultiplier(ecoBalance, currentInflationMult)
-            );
-        } else {
-            //the fee is below the token amount
-            if (feeAmount > ecoBalance) {
-                revert InvalidFee();
-            }
-            _eco.transfer(
-                recipient,
-                _applyInflationMultiplier(
-                    ecoBalance - feeAmount,
-                    currentInflationMult
-                )
-            );
-            _eco.transfer(
-                msg.sender,
-                _applyInflationMultiplier(feeAmount, currentInflationMult)
-            );
-        }
-
-        emit ReleaseVesting(
-            recipient,
-            msg.sender,
-            _applyInflationMultiplier(
-                ecoBalance - feeAmount,
-                currentInflationMult
-            ),
-            vestedBalance,
-            feeAmount
-        );
-    }
-
-    /**
      * Verifies that the recipient signed the message, and that the message is the correct hash of the
      * parameters for determining the payer pay off and the length the signature is valid.
      *
@@ -656,41 +392,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
             keccak256(
                 abi.encode(
                     CLAIM_TYPEHASH,
-                    keccak256(bytes(socialID)),
-                    recipient,
-                    feeAmount,
-                    deadline,
-                    nonce
-                )
-            )
-        );
-        return hash.recover(recipientSig) == recipient;
-    }
-
-    /**
-     * Verifies that the recipient signed the message, and that the message is the correct hash of the
-     * parameters for determining the payer pay off and the length the signature is valid.
-     *
-     * @param socialID the socialID of the recipient
-     * @param recipient the recipient of the tokens
-     * @param feeAmount the fee in eco the payer is granted from the recipient
-     * @param deadline the time at which the signature is no longer valid
-     * @param nonce the nonce for the signatures for this claim registration
-     *
-     * @return true if the signature is valid, false otherwise
-     */
-    function _verifyReleaseSigature(
-        string calldata socialID,
-        address recipient,
-        uint256 feeAmount,
-        uint256 deadline,
-        uint256 nonce,
-        bytes calldata recipientSig
-    ) internal view returns (bool) {
-        bytes32 hash = _hashTypedDataV4(
-            keccak256(
-                abi.encode(
-                    RELEASE_TYPEHASH,
                     keccak256(bytes(socialID)),
                     recipient,
                     feeAmount,

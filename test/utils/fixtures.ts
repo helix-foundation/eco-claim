@@ -80,25 +80,32 @@ export async function deployEcoClaim(
   const root = tree.getHexRoot()
 
   const EcoClaimContract = await ethers.getContractFactory("EcoClaim")
-  const ecoClaimProxy = await upgrades.deployProxy(EcoClaimContract, [eco.address,
-    ecoX.address,
-    ecoID.address,
-    trustedVerifier.address,
-    root,
-    tree.getDepth()], {
-    initializer: "initialize",
-  })
-  // const claim = await EcoClaim.deploy(
-  //   eco.address,
-  //   ecoX.address,
-  //   ecoID.address,
-  //   trustedVerifier.address,
-  //   root,
-  //   tree.getDepth()
-  // )
+  const ecoClaimProxy = await upgrades.deployProxy(
+    EcoClaimContract,
+    [
+      eco.address,
+      ecoX.address,
+      ecoID.address,
+      trustedVerifier.address,
+      root,
+      tree.getDepth(),
+    ],
+    {
+      initializer: "initialize",
+    }
+  )
+
   await ecoClaimProxy.deployed()
   // // @ts-ignore
-  return [eco, ecoX as EcoXTest, ecoID, ecoClaimProxy as EcoClaim, balancedLeaves, tree, root]
+  return [
+    eco,
+    ecoX as EcoXTest,
+    ecoID,
+    ecoClaimProxy as EcoClaim,
+    balancedLeaves,
+    tree,
+    root,
+  ]
 }
 
 /**
