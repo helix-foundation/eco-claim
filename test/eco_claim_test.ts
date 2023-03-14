@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { expect } from "chai"
-import { ethers } from "hardhat"
+import { ethers, upgrades } from "hardhat"
 import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
 import { signClaimTypeMessage, signRegistrationTypeMessage } from "./utils/sign"
 import { MerkleTree } from "merkletreejs"
@@ -118,9 +118,29 @@ describe("EcoClaim tests", async function () {
         })
 
         it("should should emit an event when contract is paused", async function () {
+          expect(await claim.connect(owner)._isPaused()).to.eq(false)
           await expect(claim.connect(owner).setPaused(true))
             .to.emit(claim, "Paused")
             .withArgs(true)
+          expect(await claim.connect(owner)._isPaused()).to.eq(true)
+        })
+
+        it("should should remain paused after a contract update via proxy", async function () {
+          await expect(claim.connect(owner).setPaused(true))
+            .to.emit(claim, "Paused")
+            .withArgs(true)
+          expect(await claim.connect(owner)._isPaused()).to.eq(true)
+
+          const claimV2Contract = await ethers.getContractFactory(
+            "EcoClaimTest"
+          )
+          const ecoClaimProxy = await upgrades.upgradeProxy(
+            claim.address,
+            claimV2Contract
+          )
+          await expect(ecoClaimProxy.log()).to.emit(ecoClaimProxy, "ClaimTest")
+
+          expect(await claim.connect(owner)._isPaused()).to.eq(true)
         })
 
         it("should fail when we claim zero points", async function () {
