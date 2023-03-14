@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { expect } from "chai"
-import { ethers } from "hardhat"
+import { ethers, upgrades } from "hardhat"
 import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
 import { signClaimTypeMessage, signRegistrationTypeMessage } from "./utils/sign"
 import { MerkleTree } from "merkletreejs"
@@ -8,7 +8,6 @@ import keccak256 from "keccak256"
 import { claimElements, deployEcoClaim, nextPowerOf2 } from "./utils/fixtures"
 import { increase, latestBlockTimestamp } from "./utils/time"
 import { ClaimElement, MerkelLeaves } from "./utils/types"
-import { fail } from "assert"
 
 describe("EcoClaim tests", async function () {
   let owner: SignerWithAddress,
@@ -112,8 +111,36 @@ describe("EcoClaim tests", async function () {
           ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
         })
 
-        it("should fail when the contract is frozen", async function () {
-          fail("todo")
+        it("should fail when non-owner tries to change the pause state of the contract", async function () {
+          await expect(claim.connect(addr0).setPaused(true)).to.be.revertedWith(
+            "Ownable: caller is not the owner"
+          )
+        })
+
+        it("should should emit an event when contract is paused", async function () {
+          expect(await claim.connect(owner)._isPaused()).to.eq(false)
+          await expect(claim.connect(owner).setPaused(true))
+            .to.emit(claim, "Paused")
+            .withArgs(true)
+          expect(await claim.connect(owner)._isPaused()).to.eq(true)
+        })
+
+        it("should should remain paused after a contract update via proxy", async function () {
+          await expect(claim.connect(owner).setPaused(true))
+            .to.emit(claim, "Paused")
+            .withArgs(true)
+          expect(await claim.connect(owner)._isPaused()).to.eq(true)
+
+          const claimV2Contract = await ethers.getContractFactory(
+            "EcoClaimTest"
+          )
+          const ecoClaimProxy = await upgrades.upgradeProxy(
+            claim.address,
+            claimV2Contract
+          )
+          await expect(ecoClaimProxy.log()).to.emit(ecoClaimProxy, "ClaimTest")
+
+          expect(await claim.connect(owner)._isPaused()).to.eq(true)
         })
 
         it("should fail when we claim zero points", async function () {
@@ -127,6 +154,15 @@ describe("EcoClaim tests", async function () {
           beforeEach(async function () {
             await eco.transfer(claim.address, 2000)
             await ecoX.transfer(claim.address, 1000)
+          })
+
+          it("should fail when the contract is paused", async function () {
+            await claim.connect(owner).setPaused(true)
+
+            const proof = tree.getHexProof(leaves[0])
+            await expect(
+              claim.connect(addr0).claimTokens(proof, socialID, points)
+            ).to.be.revertedWith("ClaimsPaused()")
           })
 
           it("should succeed when the proof and leaf match and emit an event", async function () {
