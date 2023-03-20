@@ -1,61 +1,174 @@
-// chai testing framework for unclaimed.ts
-// const path = require("path")
-// const USER_DATA_PATH = path.join(__dirname, "/gen/migrate_claim_points")
-// const discord = path.join(__dirname, "/input/discord-points-final.csv")
-// const twitter = path.join(__dirname, "/input/twitter-points-final.csv")
+import { expect } from "chai"
+import { ethers } from "hardhat"
+import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
+import { unclaimed } from "../scripts/utils/unclaimed"
+import { ClaimElement, MerkelLeaves } from "../scripts/utils/types"
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
+import { MerkleTree } from "merkletreejs"
+import { claimElements, deployEcoClaim } from "./utils/fixtures"
+import { createMerkleTree } from "../scripts/utils/merkle"
+import { expectThrowsAsync } from "./utils/random"
+import { mintNftForUser } from "./eco_claim_test"
 
-// import { expect } from "chai"
-// import { ethers } from "hardhat"
-// import { EcoClaim } from "../typechain-types"
-// import { unclaimed, loadClaimPoints } from "../scripts/utils/unclaimed"
-// import { ClaimElement, PointsData } from "../scripts/utils/merkle"
-// 
-// describe("Unclaimed", () => {
-//   let ecoClaimContract: EcoClaim
-//   let claimPoints: PointsData
-//   let claims: ClaimElement[]
-// 
-//   before(async () => {
-//     // @ts-ignore
-//     ecoClaimContract = (await ethers.getContractAt(
-//       "EcoClaim",
-//       //@ts-ignore
-//       process.env.ECO_CLAIM_ADDRESS //address of the proxy contract
-//     )) as EcoClaim
-// 
-//     claimPoints = await loadClaimPoints(path.join(__dirname, "/gen/migrate_claim_points"))
-//     claims = toClaimElements(claimPoints)
-//   })
-// 
-//   it("should return unclaimed points", async () => {
-//     const unclaimedPoints = await unclaimed(claimPoints, ecoClaimContract)
-//     expect(Object.keys(unclaimedPoints).length).to.equal(claims.length)
-//   })
-// 
-//   it("should remove claimed points", async () => {
-//     await ecoClaimContract.claim(claims[0].id, claims[0].points, "0x00", "0x00")
-//     const unclaimedPoints = await unclaimed(claimPoints, ecoClaimContract)
-//     expect(Object.keys(unclaimedPoints).length).to.equal(claims.length - 1)
-//   })
-// })
-// 
-// 
-// chai testing framework for merkle.ts
-// import { expect } from "chai"
-// import { ethers } from "hardhat"
-// import { EcoClaim } from "../typechain-types"
-// import { unclaimed, loadClaimPoints } from "../scripts/utils/unclaimed"
-// import { ClaimElement, PointsData } from "../scripts/utils/merkle"
-// 
-// describe("Unclaimed", () => {
-//   let ecoClaimContract: EcoClaim
-//   let claimPoints: PointsData
-//   let claims: ClaimElement[]
-// 
-//   before(async () => {
-//     // @ts-ignore
-//     ecoClaimContract = (await ethers.getContractAt(
-//       "EcoClaim// const path = require("path")
-// const USER_DATA_PATH = path.join(__dirname, "/gen/migrate_claim_points")
-// const discord = path.join(__dirname, "/input/discord-points-final.csv")
-// const twitter = path.join(__dirname, "/input/twitter-points-final.csv")
+describe("Claim deploy tests", () => {
+  let owner: SignerWithAddress, addr0: SignerWithAddress
+  let eco: EcoTest
+  let ecoX: EcoXTest
+  let ecoID: EcoID
+  let claim: EcoClaim
+  let leaves: MerkelLeaves
+  let tree: MerkleTree
+
+  beforeEach(async () => {
+    ;[owner, addr0] = await ethers.getSigners()
+    ;[eco, ecoX, ecoID, claim, leaves, tree] = await deployEcoClaim(
+      owner,
+      claimElements
+    )
+  })
+
+  it("should fail when the input data doesn't match the merkle root", async () => {
+    // subarray of claimElements that is 2 smaller
+    const wrongelements = claimElements.slice(0, claimElements.length - 2)
+    await expectThrowsAsync(
+      () => unclaimed(wrongelements, claim),
+      "Merkle tree root does not match contract"
+    )
+  })
+
+  it("should succeed when the input data matchs the merkle root", async () => {
+    const elements = await unclaimed(claimElements, claim)
+    expect(Object.keys(elements).length).to.equal(claimElements.length)
+  })
+
+  describe("when not migrating from a past merkle tree", () => {
+    it("should return the same number of claims when creating a merkle tree", async () => {
+      const claims = await createMerkleTree(claimElements)
+      expect(Object.keys(claims).length).to.equal(claimElements.length)
+    })
+  })
+
+  describe("when migrating from a past merkle tree", () => {
+    beforeEach(async function () {
+      await eco.transfer(claim.address, 2000000)
+      await ecoX.transfer(claim.address, 1000000)
+
+      // loop over claimElements and mint nfts for each
+      for (const element of claimElements) {
+        await mintNftForUser(element, addr0, ecoID, owner)
+      }
+    })
+
+    describe("when no claims on the previous merkle tree", () => {
+      it("should create a tree with just the new claims when no claims on the previous merkle tree", async () => {
+        const sumClaims = await createMerkleTree(claimElements, [])
+
+        // check no duplication of elements
+        expect(Object.keys(sumClaims).length).to.equal(claimElements.length)
+
+        for (const [index, claim] of Object.entries(sumClaims)) {
+          // @ts-ignore
+          expect(claim.points).to.equal(claimElements[index].points)
+        }
+      })
+    })
+
+    describe("when some claims on the previous merkle tree", () => {
+      it("should create a tree with the few previous unclaimed leaves added to the new claims", async () => {
+        const claimed = claimElements.slice(0, 2).map((x) => x)
+        const sumClaims = await createMerkleTree(claimElements, claimed)
+
+        // check no duplication of elements
+        expect(Object.keys(sumClaims).length).to.equal(claimElements.length)
+
+        for (const [index, claim] of Object.entries(sumClaims)) {
+          // @ts-ignore
+          if (index < 2) {
+            // @ts-ignore
+            expect(claim.points).to.equal(claimElements[index].points * 2)
+            continue
+          }
+        }
+      })
+
+      it("should create a tree with different unclaimed social elements plus the new claims", async () => {
+        const claimed: ClaimElement[] = [
+          { id: "a1", points: 123 },
+          { id: "a2", points: 345 },
+        ]
+        const sumClaims = await createMerkleTree(claimElements, claimed)
+
+        // check no duplication of elements
+        expect(Object.keys(sumClaims).length).to.equal(
+          claimElements.length + claimed.length
+        )
+        const start = claimElements.length - 1
+        for (const [index, claim] of Object.entries(sumClaims)) {
+          // @ts-ignore
+          if (index > start) {
+            // @ts-ignore
+            expect(claim.points).to.equal(claimed[index - start - 1].points)
+            continue
+          }
+        }
+      })
+    })
+
+    describe("when checking claims contract for unclaimed points", () => {
+      it("should return all points as unclaimed", async () => {
+        const unclaimedPoints = await unclaimed(claimElements, claim)
+        expect(Object.keys(unclaimedPoints).length).to.equal(
+          claimElements.length
+        )
+      })
+
+      it("should return a subset when some points are claimed ", async () => {
+        const claimed_points = 2
+        for (let index = 0; index < claimed_points; index++) {
+          await expect(
+            claim
+              .connect(addr0)
+              .claimTokens(
+                tree.getHexProof(leaves[index]),
+                claimElements[index].id,
+                claimElements[index].points
+              )
+          ).to.emit(claim, "Claim")
+        }
+
+        const unclaimedPoints = await unclaimed(claimElements, claim)
+
+        expect(Object.keys(unclaimedPoints).length).to.equal(
+          claimElements.length - claimed_points
+        )
+      })
+
+      it("should return a just the new set when all points are claimed ", async () => {
+        const claimed_points = claimElements.length
+        for (let index = 0; index < claimed_points; index++) {
+          await expect(
+            claim
+              .connect(addr0)
+              .claimTokens(
+                tree.getHexProof(leaves[index]),
+                claimElements[index].id,
+                claimElements[index].points
+              )
+          ).to.emit(claim, "Claim")
+        }
+
+        const unclaimedPoints = await unclaimed(claimElements, claim)
+        expect(Object.keys(unclaimedPoints).length).to.equal(0)
+      })
+    })
+
+    describe("when generating a new claim contract", () => {
+      it("should return all points as unclaimed", async () => {
+        const unclaimedPoints = await unclaimed(claimElements, claim)
+        expect(Object.keys(unclaimedPoints).length).to.equal(
+          claimElements.length
+        )
+      })
+    })
+  })
+})

@@ -7,7 +7,7 @@ import MerkleTree from "merkletreejs"
 import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
 import { deployEcoClaim } from "./utils/fixtures"
 import keccak256 from "keccak256"
-import { ClaimElement } from "./utils/types"
+import { ClaimElement } from "../scripts/utils/types"
 import { mintNftForUser } from "./eco_claim_test"
 import { fail } from "assert"
 const path = require("path")

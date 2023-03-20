@@ -4,5 +4,8 @@ export type ClaimElement = {
   points: number | string
 }
 
+// type for the points data {string: string}
+export type PointsData = Object
+
 // The type for the leaves array that is generated during deployClaim
 export type MerkelLeaves = string[]

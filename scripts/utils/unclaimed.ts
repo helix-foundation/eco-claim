@@ -1,12 +1,7 @@
-import { ethers } from "hardhat"
-import { ClaimElement } from "../../test/utils/types"
+import { ClaimElement, PointsData } from "./types"
 import { EcoClaim } from "../../typechain-types"
-import { generateTree, toClaimElements } from "./merkle"
+import { generateTree, toClaimElements, toClaimPoints } from "./merkle"
 const fs = require("fs")
-const path = require("path")
-
-// type for the points data {string: string}
-export type PointsData = Object
 
 /**
  * This method loads the data for the merkele tree that a EcoClaim contract was initialized with.
@@ -17,14 +12,17 @@ export type PointsData = Object
  * @returns
  */
 export async function unclaimed(
-  claimPoints: PointsData,
+  claimPoints: ClaimElement[],
   ecoClaim: EcoClaim
-): Promise<PointsData> {
-  //verify that the input data matches the merkle root of the current contract
-  await verifyTreeRoot(toClaimElements(claimPoints), await ecoClaim._pointsMerkleRoot())
+): Promise<ClaimElement[]> {
+  // verify that the input data matches the merkle root of the current contract
+  await verifyTreeRoot(claimPoints, await ecoClaim._pointsMerkleRoot())
 
-  const unclaimedPoints = getUnclaimedPoints(claimPoints, ecoClaim)
-  return unclaimedPoints
+  const unclaimedPoints = await getUnclaimedPoints(
+    toClaimPoints(claimPoints),
+    ecoClaim
+  )
+  return toClaimElements(unclaimedPoints)
 }
 
 /**
@@ -39,6 +37,7 @@ export async function loadClaimPoints(file: string): Promise<Object> {
         console.log(error)
         reject(error)
       }
+      console.log(data)
       resolve(JSON.parse(data))
     })
   })
@@ -50,14 +49,19 @@ export async function loadClaimPoints(file: string): Promise<Object> {
  * @param ecoClaim the EcoClaim contract to check for claimed points
  * @returns the filtered points data
  */
-function getUnclaimedPoints(claimPoints: PointsData, ecoClaim: EcoClaim) : PointsData{
+async function getUnclaimedPoints(
+  claimPoints: PointsData,
+  ecoClaim: EcoClaim
+): Promise<PointsData> {
   const claimPointsIDs = Object.keys(claimPoints)
-  claimPointsIDs.forEach(async (social: string) => {
+
+  for (const social of claimPointsIDs) {
     if (await ecoClaim._claimedBalances(social)) {
       // @ts-ignore
       delete claimPoints[social]
     }
-  })
+  }
+
   return claimPoints
 }
 
@@ -69,9 +73,8 @@ function getUnclaimedPoints(claimPoints: PointsData, ecoClaim: EcoClaim) : Point
  * @param treeRoot the merkle tree root of the contract
  */
 function verifyTreeRoot(claims: ClaimElement[], treeRoot: string) {
-  const {root} = generateTree(claims)
+  const { root } = generateTree(claims)
   if (root !== treeRoot) {
     throw new Error("Merkle tree root does not match contract")
   }
 }
-

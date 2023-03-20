@@ -3,7 +3,7 @@ import { ethers, upgrades } from "hardhat"
 import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../../typechain-types"
 import { MerkleTree } from "merkletreejs"
 import keccak256 from "keccak256"
-import { ClaimElement, MerkelLeaves } from "./types"
+import { ClaimElement, MerkelLeaves } from "../../scripts/utils/types"
 
 // An array of elements that represent the unique claim and redeemable token value for the EcoClaim contract
 export const claimElements: ClaimElement[] = [

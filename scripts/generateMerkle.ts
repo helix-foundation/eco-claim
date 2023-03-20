@@ -1,10 +1,22 @@
-import { createMerkleTree } from "./utils/merkle"
+import { createMerkleTree, parseData } from "./utils/merkle"
 const path = require("path")
 
 async function main() {
-  const discord = path.join(__dirname, "/input/discord-points-final.csv")
-  const twitter = path.join(__dirname, "/input/twitter-points-final.csv")
-  await createMerkleTree(discord, twitter)
+  const discordFilePath = path.join(
+    __dirname,
+    "/input/discord-points-final.csv"
+  )
+  const twitterFilePath = path.join(
+    __dirname,
+    "/input/twitter-points-final.csv"
+  )
+
+  const claims = await parseData([
+    { filepath: discordFilePath, prefix: "discord:" },
+    { filepath: twitterFilePath, prefix: "twitter:" },
+  ])
+
+  await createMerkleTree(claims)
 }
 
 main().catch((error) => {

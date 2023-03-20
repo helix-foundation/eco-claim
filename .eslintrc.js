@@ -42,5 +42,7 @@ module.exports = {
         tryExtensions: [".js", ".json", ".node", ".ts", ".d.ts"],
       },
     ],
+    "node/no-unpublished-import": 0,
+    "node/no-unpublished-require": 0
   },
 }

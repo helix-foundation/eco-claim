@@ -2,8 +2,7 @@ import { MerkleTree } from "merkletreejs"
 import { ethers } from "hardhat"
 import { BigNumber } from "ethers"
 import { balanceMerkleTreeData } from "../../test/utils/fixtures"
-import { ClaimElement } from "../../test/utils/types"
-import { PointsData } from "./unclaimed"
+import { ClaimElement, PointsData } from "./types"
 const fs = require("fs")
 const { parse } = require("csv-parse")
 const path = require("path")
@@ -36,20 +35,30 @@ export type ClaimsMerkleTree = {
  * Creates a merkle tree for the input points csv and any carry over points
  * from a previous trees leaves
  *
- * @param discordFilePath path to csv file for discord points
- * @param twitterFilePath path to csv file for twitter points
+ * @param inputClaims the claim elements to create a new merkle tree for
  * @param unclaimedPoints points that are getting carried over from a previous tree
+ * @returns the claims that make up the leaves of the merkle tree
  */
 export async function createMerkleTree(
-  discordFilePath: string,
-  twitterFilePath: string,
-  unclaimedPoints?: PointsData
-) {
+  inputClaims: ClaimElement[],
+  unclaimedPoints?: ClaimElement[]
+): Promise<ClaimElement[]> {
+  // copy input so we don't mutate it
+  const claims: ClaimElement[] = structuredClone(inputClaims)
 
-  let claims = await parseData([{ filepath: discordFilePath, prefix: "discord:" }, { filepath: twitterFilePath, prefix: "twitter:" }])
-  
   if (unclaimedPoints) {
-    // todo need to pass ecoclaim contract in and make tests
+    // loop over unclaimed points and add them to the claims
+    for (const [_, unclaimed] of Object.entries(unclaimedPoints)) {
+      const claim = claims.find((x) => x.id === unclaimed.id)
+      if (claim) {
+        // add the points to the existing claim
+        // @ts-ignore
+        claim.points += unclaimed.points
+      } else {
+        // add a new claim
+        claims.push({ id: unclaimed.id, points: unclaimed.points })
+      }
+    }
   }
 
   await saveGeneratedData("claim_points", toClaimPoints(claims))
@@ -60,6 +69,7 @@ export async function createMerkleTree(
   // write the root and leaves into a json array file
   await saveGeneratedData("merkle_tree", claimsTree)
 
+  return claims
 }
 
 /**
@@ -73,11 +83,11 @@ export function generateTree(claims: ClaimElement[]): ClaimsMerkleTree {
   const unbalancedLeaves = claims.map((x) =>
     ethers.utils.solidityKeccak256(["string", "uint256"], [x.id, x.points])
   )
-  console.log(`Unbalanced leaves length ${unbalancedLeaves.length}`)
+  // console.log(`Unbalanced leaves length ${unbalancedLeaves.length}`)
 
   // balance the tree so that its leaves are a power of 2
   const leaves = balanceMerkleTreeData(unbalancedLeaves)
-  console.log(`Balanced leaves length ${leaves.length}`)
+  // console.log(`Balanced leaves length ${leaves.length}`)
 
   // calculate the tree and its root
   const tree = new MerkleTree(leaves, ethers.utils.keccak256, {
@@ -90,7 +100,7 @@ export function generateTree(claims: ClaimElement[]): ClaimsMerkleTree {
     total = total.add(BigNumber.from(claim.points))
   })
   const points = total.toString()
-  console.log("Total points *1E18 : " + points)
+  // console.log("Total points *1E18 : " + points)
 
   const root = tree.getHexRoot()
   const depth = tree.getDepth()
@@ -108,16 +118,17 @@ export function generateTree(claims: ClaimElement[]): ClaimsMerkleTree {
   return { root, depth, points, leaves }
 }
 
-
 /**
  * Parses the csv file and returns the data as an array of ClaimElements for merkle tree and the points data for
  * saving to a file to serve as the source of the merkle tree
- * 
+ *
  * @param files csv files to parse
- * @returns 
+ * @returns
  */
-export async function parseData(files: CsvPointsFile[]): Promise<ClaimElement[]> {
-  let fileReadData: ClaimElement[][] = []
+export async function parseData(
+  files: CsvPointsFile[]
+): Promise<ClaimElement[]> {
+  const fileReadData: ClaimElement[][] = []
   // get all the csv data into an array
   files.forEach(async (file: CsvPointsFile) => {
     fileReadData.push(await loadCsvPointsData(file))
@@ -126,10 +137,10 @@ export async function parseData(files: CsvPointsFile[]): Promise<ClaimElement[]>
   // read all files into an array
   // using Promise.all to wait for all promises to resolve
   const data = await Promise.all(
-    files.map(async function(file) {
-         return Promise.all(await loadCsvPointsData(file));
+    files.map(async function (file) {
+      return Promise.all(await loadCsvPointsData(file))
     })
- )
+  )
 
   // merge the array data
   const claims = data.reduce((sum, i) => sum.concat(i))
@@ -139,9 +150,9 @@ export async function parseData(files: CsvPointsFile[]): Promise<ClaimElement[]>
 
 /**
  * Converts the claim elements into a hashmap of id to points
- * 
+ *
  * @param claims the user id and points that make up the leaves of the merkle tree
- * @returns 
+ * @returns
  */
 export function toClaimPoints(claims: ClaimElement[]): PointsData {
   const claimPoints = {}
@@ -153,9 +164,9 @@ export function toClaimPoints(claims: ClaimElement[]): PointsData {
 
 /**
  * Converts the claim points from a hashmap into an array of ClaimElements
- * 
+ *
  * @param claimPoints
- * @returns 
+ * @returns
  */
 export function toClaimElements(claimPoints: PointsData): ClaimElement[] {
   const claims: ClaimElement[] = []
@@ -168,7 +179,7 @@ export function toClaimElements(claimPoints: PointsData): ClaimElement[] {
 
 /**
  * Saves generated data to a local file
- * 
+ *
  * @param fileName filename to save the data to
  * @param data the data to save
  */
@@ -186,7 +197,7 @@ async function saveGeneratedData(fileName: string, data: any) {
       if (err) {
         return console.log(err)
       }
-      console.log(`The ${fileName} file was saved!`)
+      // console.log(`The ${fileName} file was saved!`)
     }
   )
 }
