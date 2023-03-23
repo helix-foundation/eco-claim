@@ -7,7 +7,7 @@ import { MerkleTree } from "merkletreejs"
 import keccak256 from "keccak256"
 import { claimElements, deployEcoClaim, nextPowerOf2 } from "./utils/fixtures"
 import { increase, latestBlockTimestamp } from "./utils/time"
-import { ClaimElement, MerkelLeaves } from "./utils/types"
+import { ClaimElement, MerkelLeaves } from "../scripts/utils/types"
 
 describe("EcoClaim tests", async function () {
   let owner: SignerWithAddress,
@@ -125,7 +125,7 @@ describe("EcoClaim tests", async function () {
           expect(await claim.connect(owner)._isPaused()).to.eq(true)
         })
 
-        it("should should remain paused after a contract update via proxy", async function () {
+        it("should remain paused after a contract update via proxy", async function () {
           await expect(claim.connect(owner).setPaused(true))
             .to.emit(claim, "Paused")
             .withArgs(true)
