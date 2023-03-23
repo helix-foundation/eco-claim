@@ -43,6 +43,6 @@ module.exports = {
       },
     ],
     "node/no-unpublished-import": 0,
-    "node/no-unpublished-require": 0
+    "node/no-unpublished-require": 0,
   },
 }

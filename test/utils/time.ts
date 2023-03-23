@@ -14,7 +14,7 @@ export async function latestBlock() {
   return parseInt(res.number, 16)
 }
 
-export async function latestBlockTimestamp() {
+export async function latestBlockTimestamp(): Promise<string> {
   const res = await hre.network.provider.send("eth_getBlockByNumber", [
     "latest",
     false,

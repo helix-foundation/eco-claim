@@ -81,6 +81,11 @@ contract EcoClaim is EIP712Upgradeable {
     error TokensAlreadyClaimed();
 
     /**
+     * Error for when the user tries to claim tokens after the claim period has ended
+     */
+    error ClaimPeriodEnded();
+
+    /**
      * The hash of the register function signature for the recipient
      */
     bytes32 private constant CLAIM_TYPEHASH =
@@ -146,6 +151,16 @@ contract EcoClaim is EIP712Upgradeable {
     uint256 public _initialInflationMultiplier;
 
     /**
+     * The duration of the claim period from the time the contract is deployed
+     */
+    uint256 public constant CLAIM_DURATION = 60 days;
+
+    /**
+     *  The end timestamp of the claim period
+     */
+    uint256 public _claimPeriodEnd;
+
+    /**
      * Disable the implementation contract
      */
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -178,6 +193,7 @@ contract EcoClaim is EIP712Upgradeable {
         _pointsMerkleRoot = merkelRoot;
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
+        _claimPeriodEnd = block.timestamp + CLAIM_DURATION;
 
         emit InitializeEcoClaim();
     }
@@ -267,6 +283,10 @@ contract EcoClaim is EIP712Upgradeable {
         address recipient,
         uint256 feeAmount
     ) internal {
+        //Checks that the claim period has not ended
+        if (block.timestamp > _claimPeriodEnd) {
+            revert ClaimPeriodEnded();
+        }
 
         //Checks that the social id has not claimed its tokens
         if (_claimedBalances[socialID]) {

@@ -8,7 +8,6 @@ import keccak256 from "keccak256"
 import { claimElements, deployEcoClaim, nextPowerOf2 } from "./utils/fixtures"
 import { increase, latestBlockTimestamp } from "./utils/time"
 import { ClaimElement, MerkelLeaves } from "../scripts/utils/types"
-import { fail } from "assert"
 
 describe("EcoClaim tests", async function () {
   let owner: SignerWithAddress,
@@ -23,6 +22,7 @@ describe("EcoClaim tests", async function () {
   let ecoXRatio: number
   const feeAmount = 20
   let deadline: number, chainID: number, nonce: number
+  const claimDuration = 60 * 24 * 60 * 60 // 60 days
 
   describe("On claim", async function () {
     beforeEach(async function () {
@@ -31,6 +31,7 @@ describe("EcoClaim tests", async function () {
         owner,
         claimElements
       )
+
       ecoXRatio = (await claim.POINTS_TO_ECOX_RATIO()).toNumber()
 
       deadline = parseInt(await latestBlockTimestamp(), 16) + 10000
@@ -112,25 +113,27 @@ describe("EcoClaim tests", async function () {
           ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
         })
 
+        it("should maintain the same claim period after a contract update via proxy", async function () {
+          const orignialClaimPeriodEnd = await claim
+            .connect(owner)
+            ._claimPeriodEnd()
 
-        it("should remain paused after a contract update via proxy", async function () {
-          fail("update to check for timeout continue on update")
-          // await expect(claim.connect(owner).setPaused(true))
-          //   .to.emit(claim, "Paused")
-          //   .withArgs(true)
-          // expect(await claim.connect(owner)._isPaused()).to.eq(true)
+          expect(await claim.connect(owner)._claimPeriodEnd()).to.eq(
+            orignialClaimPeriodEnd
+          )
 
-          // const claimV2Contract = await ethers.getContractFactory(
-          //   "EcoClaimTest"
-          // )
-          // const ecoClaimProxy = await upgrades.upgradeProxy(
-          //   claim.address,
-          //   claimV2Contract
-          // )
-          // await expect(ecoClaimProxy.log()).to.emit(ecoClaimProxy, "ClaimTest")
+          const claimV2Contract = await ethers.getContractFactory(
+            "EcoClaimTest"
+          )
+          const ecoClaimProxy = await upgrades.upgradeProxy(
+            claim.address,
+            claimV2Contract
+          )
+          await expect(ecoClaimProxy.log()).to.emit(ecoClaimProxy, "ClaimTest")
 
-          // expect(await claim.connect(owner)._isPaused()).to.eq(true)
-
+          expect(await claim.connect(owner)._claimPeriodEnd()).to.eq(
+            orignialClaimPeriodEnd
+          )
         })
 
         it("should fail when we claim zero points", async function () {
@@ -146,14 +149,12 @@ describe("EcoClaim tests", async function () {
             await ecoX.transfer(claim.address, 1000)
           })
 
-          it("should fail when the contract is paused", async function () {
-            fail("update to check for timeout")
-            // await claim.connect(owner).setPaused(true)
-
-            // const proof = tree.getHexProof(leaves[0])
-            // await expect(
-            //   claim.connect(addr0).claimTokens(proof, socialID, points)
-            // ).to.be.revertedWith("ClaimsPaused()")
+          it("should fail when the contract claim period has passed", async function () {
+            await increase(claimDuration)
+            const proof = tree.getHexProof(leaves[0])
+            await expect(
+              claim.connect(addr0).claimTokens(proof, socialID, points)
+            ).to.be.revertedWith("ClaimPeriodEnded()")
           })
 
           it("should succeed when the proof and leaf match and emit an event", async function () {
@@ -168,6 +169,15 @@ describe("EcoClaim tests", async function () {
             // check balances
             expect(await eco.balanceOf(addr0.address)).to.equal(ecoBalance)
             expect(await ecoX.balanceOf(addr0.address)).to.equal(ecoXBalance)
+          })
+
+          it("should succeed when the claim period has not yet passed", async function () {
+            await increase(claimDuration / 2)
+            const proof = tree.getHexProof(leaves[0])
+
+            await expect(
+              claim.connect(addr0).claimTokens(proof, socialID, points)
+            ).to.emit(claim, "Claim")
           })
 
           it("should find the next power of 2", async function () {
