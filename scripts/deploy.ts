@@ -20,7 +20,11 @@ async function main() {
   console.log("EcoID Contract deployed to:", ecoIDContract.address)
 
   // Deploy Claim
-  const claimContract = await ClaimContract.deploy(
+  const claimContract = await ClaimContract.deploy({ gasPrice: gasPrice })
+
+  await claimContract.deployed()
+  
+  await claimContract.initialize(
     process.env.ECO_ADDRESS as string,
     process.env.ECOX_ADDRESS as string,
     ecoIDContract.address,
@@ -29,8 +33,6 @@ async function main() {
     process.env.MERKLE_DEPTH as string,
     { gasPrice: gasPrice }
   )
-
-  await claimContract.deployed()
 
   console.log("Claim Contract deployed to:", claimContract.address)
 }
