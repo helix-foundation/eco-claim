@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { expect } from "chai"
-import { ethers, upgrades } from "hardhat"
+import { ethers } from "hardhat"
 import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
 import { signClaimTypeMessage, signRegistrationTypeMessage } from "./utils/sign"
 import { MerkleTree } from "merkletreejs"
@@ -111,29 +111,6 @@ describe("EcoClaim tests", async function () {
           await expect(
             claim.connect(addr0).claimTokens(proof, socialID, points)
           ).to.be.revertedWith("ERC20: transfer amount exceeds balance")
-        })
-
-        it("should maintain the same claim period after a contract update via proxy", async function () {
-          const orignialClaimPeriodEnd = await claim
-            .connect(owner)
-            ._claimPeriodEnd()
-
-          expect(await claim.connect(owner)._claimPeriodEnd()).to.eq(
-            orignialClaimPeriodEnd
-          )
-
-          const claimV2Contract = await ethers.getContractFactory(
-            "EcoClaimTest"
-          )
-          const ecoClaimProxy = await upgrades.upgradeProxy(
-            claim.address,
-            claimV2Contract
-          )
-          await expect(ecoClaimProxy.log()).to.emit(ecoClaimProxy, "ClaimTest")
-
-          expect(await claim.connect(owner)._claimPeriodEnd()).to.eq(
-            orignialClaimPeriodEnd
-          )
         })
 
         it("should fail when we claim zero points", async function () {

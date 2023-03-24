@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@helix-foundation/eco-id/contracts/EcoID.sol";
 import "@helix-foundation/eco-id/contracts/interfaces/IECO.sol";
 
-contract EcoClaim is EIP712Upgradeable {
+contract EcoClaim is EIP712("EcoClaim", "1") {
     /**
      * Use for validating merkel proof of claims for tokens
      */
-    using MerkleProofUpgradeable for bytes32[];
+    using MerkleProof for bytes32[];
 
     /**
      * Use for signarture recovery and verification on token claiming
@@ -24,11 +24,6 @@ contract EcoClaim is EIP712Upgradeable {
      * Use for tracking the nonces on signatures
      */
     using Counters for Counters.Counter;
-
-    /**
-     * Event for when the constructor has finished
-     */
-    event InitializeEcoClaim();
 
     /**
      * Event for when a claim is made
@@ -122,7 +117,7 @@ contract EcoClaim is EIP712Upgradeable {
     /**
      * The ecoX ERC20 contract
      */
-    ERC20Upgradeable public _ecoX;
+    ERC20 public _ecoX;
 
     /**
      * The EcoID contract
@@ -163,29 +158,14 @@ contract EcoClaim is EIP712Upgradeable {
     /**
      * Disable the implementation contract
      */
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
-
-    /**
-     * Proxy initializer that sets the initial conditions and emits an initialization event
-     *
-     * @param eco the address of the eco contract
-     * @param ecoX the address of the ecox contract
-     * @param ecoID the address of the EcoID we use to check verifiation
-     * @param trustedVerifier the address of the trusted verifier for claims in the EcoID
-     * @param merkelRoot the root of the merkle tree used to verify socialId and point distribution
-     */
-    function initialize(
+    constructor(
         IECO eco,
-        ERC20Upgradeable ecoX,
+        ERC20 ecoX,
         EcoID ecoID,
         address trustedVerifier,
         bytes32 merkelRoot,
         uint256 proofDepth
-    ) public initializer {
-        EIP712Upgradeable.__EIP712_init("EcoClaim", "1");
+    ) {
         _eco = eco;
         _ecoX = ecoX;
         _ecoID = ecoID;
@@ -194,8 +174,6 @@ contract EcoClaim is EIP712Upgradeable {
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
         _claimPeriodEnd = block.timestamp + CLAIM_DURATION;
-
-        emit InitializeEcoClaim();
     }
 
     /**
