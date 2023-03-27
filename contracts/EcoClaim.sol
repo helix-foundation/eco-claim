@@ -26,6 +26,11 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
     using Counters for Counters.Counter;
 
     /**
+     * Event for when the constructor has finished
+     */
+    event InitializeEcoClaim();
+
+    /**
      * Event for when a claim is made
      */
     event Claim(
@@ -174,6 +179,8 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
         _claimPeriodEnd = block.timestamp + CLAIM_DURATION;
+
+        emit InitializeEcoClaim();
     }
 
     /**
