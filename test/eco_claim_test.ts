@@ -19,7 +19,6 @@ describe("EcoClaim tests", async function () {
   let claim: EcoClaim
   let leaves: MerkelLeaves
   let tree: MerkleTree
-  let ecoXRatio: number
   const feeAmount = 20
   let deadline: number, chainID: number, nonce: number
   const claimDuration = 60 * 24 * 60 * 60 // 60 days
@@ -31,8 +30,6 @@ describe("EcoClaim tests", async function () {
         owner,
         claimElements
       )
-
-      ecoXRatio = (await claim.POINTS_TO_ECOX_RATIO()).toNumber()
 
       deadline = parseInt(await latestBlockTimestamp(), 16) + 10000
       chainID = (await ethers.provider.getNetwork()).chainId
@@ -53,7 +50,7 @@ describe("EcoClaim tests", async function () {
       let element: ClaimElement
       let socialID: string
       let proof: string[]
-      let points: number, ecoBalance: number, ecoXBalance: number
+      let points: number, ecoBalance: number
 
       beforeEach(async function () {
         // create claim for main element we test on
@@ -61,7 +58,6 @@ describe("EcoClaim tests", async function () {
         socialID = element.id
         points = element.points as number
         ecoBalance = points * (await claim.POINTS_MULTIPLIER()).toNumber()
-        ecoXBalance = points / ecoXRatio
 
         await mintNft(element, addr0)
         proof = tree.getHexProof(leaves[0])
@@ -141,11 +137,10 @@ describe("EcoClaim tests", async function () {
               claim.connect(addr0).claimTokens(proof, socialID, points)
             )
               .to.emit(claim, "Claim")
-              .withArgs(socialID, addr0.address, ecoBalance, ecoXBalance)
+              .withArgs(socialID, addr0.address, ecoBalance)
 
             // check balances
             expect(await eco.balanceOf(addr0.address)).to.equal(ecoBalance)
-            expect(await ecoX.balanceOf(addr0.address)).to.equal(ecoXBalance)
           })
 
           it("should succeed when the claim period has not yet passed", async function () {
@@ -180,7 +175,7 @@ describe("EcoClaim tests", async function () {
               claim.connect(addr0).claimTokens(proof, socialID, points)
             )
               .to.emit(claim, "Claim")
-              .withArgs(socialID, addr0.address, ecoBalance, ecoXBalance)
+              .withArgs(socialID, addr0.address, ecoBalance)
 
             // should revert on seconds attempt to claim tokens
             await expect(
@@ -197,11 +192,10 @@ describe("EcoClaim tests", async function () {
               claim.connect(addr0).claimTokens(proof, socialID, points)
             )
               .to.emit(claim, "Claim")
-              .withArgs(socialID, addr0.address, ecoBalance * 2, ecoXBalance)
+              .withArgs(socialID, addr0.address, ecoBalance * 2)
 
             // check balances
             expect(await eco.balanceOf(addr0.address)).to.equal(ecoBalance * 2)
-            expect(await ecoX.balanceOf(addr0.address)).to.equal(ecoXBalance)
           })
         })
       })
@@ -377,14 +371,13 @@ describe("EcoClaim tests", async function () {
               )
           )
             .to.emit(claim, "Claim")
-            .withArgs(socialID, addr0.address, ecoBalance, ecoXBalance)
+            .withArgs(socialID, addr0.address, ecoBalance)
 
           // check balances
           expect(await eco.balanceOf(addr0.address)).to.equal(
             ecoBalance - feeAmount
           )
           expect(await eco.balanceOf(addr1.address)).to.equal(feeAmount)
-          expect(await ecoX.balanceOf(addr0.address)).to.equal(ecoXBalance)
           expect(await ecoX.balanceOf(addr1.address)).to.equal(0)
         })
       })
