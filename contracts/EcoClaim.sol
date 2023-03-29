@@ -33,12 +33,7 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
     /**
      * Event for when a claim is made
      */
-    event Claim(
-        string socialID,
-        address indexed addr,
-        uint256 eco,
-        uint256 ecox
-    );
+    event Claim(string socialID, address indexed addr, uint256 eco);
 
     /**
      * Error for when the a signature has expired
@@ -132,13 +127,7 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
     /**
      * The multiplier for points to eco conversion
      */
-    uint256 public constant POINTS_MULTIPLIER = 5;
-
-    /**
-     * The conversion coefficient for when we calculate how much ecox a participant is entitled to for every eco during the initial claim.
-     * 2 means points * 1/2 = ecox
-     */
-    uint256 public constant POINTS_TO_ECOX_RATIO = 2;
+    uint256 public constant POINTS_MULTIPLIER = 1;
 
     /**
      * The trusted verifier for the socialIDs in the EcoID contract
@@ -328,15 +317,11 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
         uint256 feeAmount
     ) internal {
         uint256 ecoBalance = points * POINTS_MULTIPLIER;
-        uint256 ecoXBalance = points / POINTS_TO_ECOX_RATIO;
 
         //the fee is below the token amount
         if (feeAmount > ecoBalance) {
             revert InvalidFee();
         }
-
-        //transfer ecox
-        _ecoX.transfer(recipient, ecoXBalance);
 
         uint256 currentInflationMult = _eco.getPastLinearInflation(
             block.number
@@ -367,8 +352,7 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
         emit Claim(
             socialID,
             recipient,
-            _applyInflationMultiplier(ecoBalance, currentInflationMult),
-            ecoXBalance
+            _applyInflationMultiplier(ecoBalance, currentInflationMult)
         );
     }
 
