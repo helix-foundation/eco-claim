@@ -1,20 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.16;
 
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/MerkleProofUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@helix-foundation/eco-id/contracts/EcoID.sol";
 import "@helix-foundation/eco-id/contracts/interfaces/IECO.sol";
 
-contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
+contract EcoClaim is EIP712("EcoClaim", "1") {
     /**
      * Use for validating merkel proof of claims for tokens
      */
-    using MerkleProofUpgradeable for bytes32[];
+    using MerkleProof for bytes32[];
 
     /**
      * Use for signarture recovery and verification on token claiming
@@ -40,11 +39,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         uint256 eco,
         uint256 ecox
     );
-
-    /**
-     * Event for when a contract is paused and funds cannot be moved
-     */
-    event Paused(bool isPaused);
 
     /**
      * Error for when the a signature has expired
@@ -87,9 +81,9 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     error TokensAlreadyClaimed();
 
     /**
-     * Error for when a user tries to claim tokens but the contract is paused
+     * Error for when the user tries to claim tokens after the claim period has ended
      */
-    error ClaimsPaused();
+    error ClaimPeriodEnded();
 
     /**
      * The hash of the register function signature for the recipient
@@ -128,7 +122,7 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     /**
      * The ecoX ERC20 contract
      */
-    ERC20Upgradeable public _ecoX;
+    ERC20 public _ecoX;
 
     /**
      * The EcoID contract
@@ -149,11 +143,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     /**
      * The trusted verifier for the socialIDs in the EcoID contract
      */
-    bool public _isPaused;
-
-    /**
-     * The trusted verifier for the socialIDs in the EcoID contract
-     */
     address public _trustedVerifier;
 
     /**
@@ -162,32 +151,26 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     uint256 public _initialInflationMultiplier;
 
     /**
-     * Disable the implementation contract
+     * The duration of the claim period from the time the contract is deployed
      */
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
-        _disableInitializers();
-    }
+    uint256 public constant CLAIM_DURATION = 60 days;
 
     /**
-     * Proxy initializer that sets the initial conditions and emits an initialization event
-     *
-     * @param eco the address of the eco contract
-     * @param ecoX the address of the ecox contract
-     * @param ecoID the address of the EcoID we use to check verifiation
-     * @param trustedVerifier the address of the trusted verifier for claims in the EcoID
-     * @param merkelRoot the root of the merkle tree used to verify socialId and point distribution
+     *  The end timestamp of the claim period
      */
-    function initialize(
+    uint256 public _claimPeriodEnd;
+
+    /**
+     * Disable the implementation contract
+     */
+    constructor(
         IECO eco,
-        ERC20Upgradeable ecoX,
+        ERC20 ecoX,
         EcoID ecoID,
         address trustedVerifier,
         bytes32 merkelRoot,
         uint256 proofDepth
-    ) public initializer {
-        OwnableUpgradeable.__Ownable_init();
-        EIP712Upgradeable.__EIP712_init("EcoClaim", "1");
+    ) {
         _eco = eco;
         _ecoX = ecoX;
         _ecoID = ecoID;
@@ -195,6 +178,7 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         _pointsMerkleRoot = merkelRoot;
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
+        _claimPeriodEnd = block.timestamp + CLAIM_DURATION;
 
         emit InitializeEcoClaim();
     }
@@ -261,14 +245,6 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
     }
 
     /**
-     * Sets whether is contract is in a paused state that blocks claims
-     */
-    function setPaused(bool paused) external onlyOwner {
-        _isPaused = paused;
-        emit Paused(_isPaused);
-    }
-
-    /**
      * Makes the _domainSeparatorV4() function externally callable for signature generation
      */
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
@@ -292,9 +268,9 @@ contract EcoClaim is OwnableUpgradeable, EIP712Upgradeable {
         address recipient,
         uint256 feeAmount
     ) internal {
-        //Checks that the claims aren't paused
-        if (_isPaused) {
-            revert ClaimsPaused();
+        //Checks that the claim period has not ended
+        if (block.timestamp > _claimPeriodEnd) {
+            revert ClaimPeriodEnded();
         }
 
         //Checks that the social id has not claimed its tokens

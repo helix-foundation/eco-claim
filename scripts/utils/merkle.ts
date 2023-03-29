@@ -48,7 +48,7 @@ export async function createMerkleTree(
 
   if (unclaimedPoints) {
     // loop over unclaimed points and add them to the claims
-    for (const [_, unclaimed] of Object.entries(unclaimedPoints)) {
+    for (const [, unclaimed] of Object.entries(unclaimedPoints)) {
       const claim = claims.find((x) => x.id === unclaimed.id)
       if (claim) {
         // add the points to the existing claim

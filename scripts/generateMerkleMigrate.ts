@@ -15,8 +15,11 @@ async function main() {
     process.env.ECO_CLAIM_ADDRESS // address of the proxy
   )) as EcoClaim
 
-    const discordFilePath = path.join(__dirname, "/input/discord-points-final.csv")
+  const discordFilePath = path.join(
+    __dirname,
+    "/input/discord-points-final.csv"
   )
+
   const twitterFilePath = path.join(
     __dirname,
     "/input/twitter-points-final.csv"
@@ -27,7 +30,7 @@ async function main() {
     ecoClaimContract
   )
 
-  let claims = await parseData([
+  const claims = await parseData([
     { filepath: discordFilePath, prefix: "discord:" },
     { filepath: twitterFilePath, prefix: "twitter:" },
   ])
