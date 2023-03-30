@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import { ethers } from "hardhat"
-import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
+import { EcoClaim, EcoID, EcoTest } from "../typechain-types"
 import { unclaimed } from "../scripts/utils/unclaimed"
 import { ClaimElement, MerkelLeaves } from "../scripts/utils/types"
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
@@ -13,7 +13,6 @@ import { mintNftForUser } from "./eco_claim_test"
 describe("Claim deploy tests", () => {
   let owner: SignerWithAddress, addr0: SignerWithAddress
   let eco: EcoTest
-  let ecoX: EcoXTest
   let ecoID: EcoID
   let claim: EcoClaim
   let leaves: MerkelLeaves
@@ -21,7 +20,7 @@ describe("Claim deploy tests", () => {
 
   beforeEach(async () => {
     ;[owner, addr0] = await ethers.getSigners()
-    ;[eco, ecoX, ecoID, claim, leaves, tree] = await deployEcoClaim(
+    ;[eco, ecoID, claim, leaves, tree] = await deployEcoClaim(
       owner,
       claimElements
     )
@@ -51,7 +50,6 @@ describe("Claim deploy tests", () => {
   describe("when migrating from a past merkle tree", () => {
     beforeEach(async function () {
       await eco.transfer(claim.address, 2000000)
-      await ecoX.transfer(claim.address, 1000000)
 
       // loop over claimElements and mint nfts for each
       for (const element of claimElements) {
