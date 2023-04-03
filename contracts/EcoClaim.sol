@@ -268,7 +268,7 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
 
         emit ClawbackTokens(_clawbackAddress, balance);
     }
-    
+
     /**
      * Makes the _domainSeparatorV4() function externally callable for signature generation
      */

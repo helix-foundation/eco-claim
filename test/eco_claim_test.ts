@@ -379,11 +379,10 @@ describe("EcoClaim tests", async function () {
       })
 
       describe("when clawing back funds", async () => {
-        const balance  = 2000
+        const balance = 2000
         beforeEach(async function () {
           await eco.transfer(claim.address, balance)
         })
-
 
         it("should revert if the caller is not authorized", async function () {
           await expect(
@@ -397,22 +396,20 @@ describe("EcoClaim tests", async function () {
           ).to.be.revertedWith("ClaimsInProgress()")
         })
 
-
         it("should claw back funds and emit an event", async function () {
-          let ownerBalance = await eco.balanceOf(owner.address)
+          const ownerBalance = await eco.balanceOf(owner.address)
           await increase(claimDuration)
 
-          await expect(
-            claim.connect(owner).clawbackTokens()
-          )
+          await expect(claim.connect(owner).clawbackTokens())
             .to.emit(claim, "ClawbackTokens")
             .withArgs(owner.address, balance)
 
-            // check balances
-            expect(await eco.balanceOf(owner.address)).to.equal(ownerBalance.add(balance))
-            expect(await eco.balanceOf(claim.address)).to.equal(0)
+          // check balances
+          expect(await eco.balanceOf(owner.address)).to.equal(
+            ownerBalance.add(balance)
+          )
+          expect(await eco.balanceOf(claim.address)).to.equal(0)
         })
-
       })
     })
   })
