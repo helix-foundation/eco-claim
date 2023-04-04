@@ -76,6 +76,7 @@ export async function deployEcoClaim(
     eco.address,
     ecoID.address,
     trustedVerifier.address,
+    trustedVerifier.address,
     root,
     tree.getDepth()
   )

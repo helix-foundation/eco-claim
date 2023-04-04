@@ -36,6 +36,11 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
     event Claim(string socialID, address indexed addr, uint256 eco);
 
     /**
+     * Event for when a clawback is triggered with the amount of eco that was clawed back
+     */
+    event ClawbackTokens(address indexed clawbackAddr, uint256 ecoBalance);
+
+    /**
      * Error for when the a signature has expired
      */
     error SignatureExpired();
@@ -79,6 +84,16 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
      * Error for when the user tries to claim tokens after the claim period has ended
      */
     error ClaimPeriodEnded();
+
+    /**
+     * Error for when the user tries to clawback tokens before the claim period has ended
+     */
+    error ClaimsInProgress();
+
+    /**
+     * Error for when clawback caller is not the authorized clawback address
+     */
+    error UnauthorizedClawbackAddress();
 
     /**
      * The hash of the register function signature for the recipient
@@ -145,18 +160,25 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
     uint256 public _claimPeriodEnd;
 
     /**
+     * The address that can clawback tokens from the contract once the claim period has ended
+     */
+    address public _clawbackAddress;
+
+    /**
      * Disable the implementation contract
      */
     constructor(
         IECO eco,
         EcoID ecoID,
         address trustedVerifier,
+        address clawbackAddress,
         bytes32 merkelRoot,
         uint256 proofDepth
     ) {
         _eco = eco;
         _ecoID = ecoID;
         _trustedVerifier = trustedVerifier;
+        _clawbackAddress = clawbackAddress;
         _pointsMerkleRoot = merkelRoot;
         _proofDepth = proofDepth;
         _initialInflationMultiplier = _eco.getPastLinearInflation(block.number);
@@ -224,6 +246,27 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
         }
 
         _claimTokens(proof, socialID, points, recipient, feeAmount);
+    }
+
+    /**
+     * Function to clawback tokens from the contract once the claim period has ended
+     */
+    function clawbackTokens() external {
+        //the caller is the clawback address
+        if (msg.sender != _clawbackAddress) {
+            revert UnauthorizedClawbackAddress();
+        }
+
+        //the claim period has ended
+        if (block.timestamp < _claimPeriodEnd) {
+            revert ClaimsInProgress();
+        }
+
+        //transfer all the tokens to the clawback address
+        uint256 balance = _eco.balanceOf(address(this));
+        _eco.transfer(_clawbackAddress, balance);
+
+        emit ClawbackTokens(_clawbackAddress, balance);
     }
 
     /**

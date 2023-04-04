@@ -377,6 +377,40 @@ describe("EcoClaim tests", async function () {
           expect(await eco.balanceOf(addr1.address)).to.equal(feeAmount)
         })
       })
+
+      describe("when clawing back funds", async () => {
+        const balance = 2000
+        beforeEach(async function () {
+          await eco.transfer(claim.address, balance)
+        })
+
+        it("should revert if the caller is not authorized", async function () {
+          await expect(
+            claim.connect(addr0).clawbackTokens()
+          ).to.be.revertedWith("UnauthorizedClawbackAddress()")
+        })
+
+        it("should revert if claim period still in progress", async function () {
+          await expect(
+            claim.connect(owner).clawbackTokens()
+          ).to.be.revertedWith("ClaimsInProgress()")
+        })
+
+        it("should claw back funds and emit an event", async function () {
+          const ownerBalance = await eco.balanceOf(owner.address)
+          await increase(claimDuration)
+
+          await expect(claim.connect(owner).clawbackTokens())
+            .to.emit(claim, "ClawbackTokens")
+            .withArgs(owner.address, balance)
+
+          // check balances
+          expect(await eco.balanceOf(owner.address)).to.equal(
+            ownerBalance.add(balance)
+          )
+          expect(await eco.balanceOf(claim.address)).to.equal(0)
+        })
+      })
     })
   })
 

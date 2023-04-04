@@ -25,6 +25,7 @@ async function main() {
     process.env.ECOX_ADDRESS as string,
     ecoIDContract.address,
     process.env.VERIFIER_ADDRESS as string,
+    process.env.CLAWBACK_ADDRESS as string,
     process.env.MERKLE_ROOT as string,
     process.env.MERKLE_DEPTH as string,
     { gasPrice: gasPrice }
