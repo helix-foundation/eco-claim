@@ -115,11 +115,6 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
     IECO public _eco;
 
     /**
-     * The ecoX ERC20 contract
-     */
-    ERC20 public _ecoX;
-
-    /**
      * The EcoID contract
      */
     EcoID public _ecoID;
@@ -154,14 +149,12 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
      */
     constructor(
         IECO eco,
-        ERC20 ecoX,
         EcoID ecoID,
         address trustedVerifier,
         bytes32 merkelRoot,
         uint256 proofDepth
     ) {
         _eco = eco;
-        _ecoX = ecoX;
         _ecoID = ecoID;
         _trustedVerifier = trustedVerifier;
         _pointsMerkleRoot = merkelRoot;
@@ -302,8 +295,7 @@ contract EcoClaim is EIP712("EcoClaim", "1") {
 
     /**
      * Performs the calculations and token transfers for a claim. It will send the eco tokens
-     * to the recipient and any fee to the payer, also in eco, if there is one. The ecox will
-     * also be calculated and transfered to the recipient
+     * to the recipient and any fee to the payer, also in eco, if there is one.
      *
      * @param socialID the socialID of the recipient
      * @param recipient the recipient of the tokens

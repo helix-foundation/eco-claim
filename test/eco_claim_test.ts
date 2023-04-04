@@ -1,7 +1,7 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { expect } from "chai"
 import { ethers } from "hardhat"
-import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
+import { EcoClaim, EcoID, EcoTest } from "../typechain-types"
 import { signClaimTypeMessage, signRegistrationTypeMessage } from "./utils/sign"
 import { MerkleTree } from "merkletreejs"
 import keccak256 from "keccak256"
@@ -14,7 +14,6 @@ describe("EcoClaim tests", async function () {
     addr0: SignerWithAddress,
     addr1: SignerWithAddress
   let eco: EcoTest
-  let ecoX: EcoXTest
   let ecoID: EcoID
   let claim: EcoClaim
   let leaves: MerkelLeaves
@@ -26,7 +25,7 @@ describe("EcoClaim tests", async function () {
   describe("On claim", async function () {
     beforeEach(async function () {
       ;[owner, addr0, addr1] = await ethers.getSigners()
-      ;[eco, ecoX, ecoID, claim, leaves, tree] = await deployEcoClaim(
+      ;[eco, ecoID, claim, leaves, tree] = await deployEcoClaim(
         owner,
         claimElements
       )
@@ -119,7 +118,6 @@ describe("EcoClaim tests", async function () {
         describe("when claims contract has a balance", async () => {
           beforeEach(async function () {
             await eco.transfer(claim.address, 2000)
-            await ecoX.transfer(claim.address, 1000)
           })
 
           it("should fail when the contract claim period has passed", async function () {
@@ -203,7 +201,6 @@ describe("EcoClaim tests", async function () {
       describe("when claiming on behalf of", async () => {
         beforeEach(async function () {
           await eco.transfer(claim.address, 1000)
-          await ecoX.transfer(claim.address, 1000)
         })
 
         it("should fail when signature has expired", async function () {
@@ -378,7 +375,6 @@ describe("EcoClaim tests", async function () {
             ecoBalance - feeAmount
           )
           expect(await eco.balanceOf(addr1.address)).to.equal(feeAmount)
-          expect(await ecoX.balanceOf(addr1.address)).to.equal(0)
         })
       })
     })

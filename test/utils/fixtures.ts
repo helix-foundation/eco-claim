@@ -1,6 +1,6 @@
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers"
 import { ethers, upgrades } from "hardhat"
-import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../../typechain-types"
+import { EcoClaim, EcoID, EcoTest } from "../../typechain-types"
 import { MerkleTree } from "merkletreejs"
 import keccak256 from "keccak256"
 import { ClaimElement, MerkelLeaves } from "../../scripts/utils/types"
@@ -47,16 +47,8 @@ export async function deployEcoClaim(
   trustedVerifier: SignerWithAddress,
   claims?: ClaimElement[],
   treeLeaves?: string[]
-): Promise<
-  [EcoTest, EcoXTest, EcoID, EcoClaim, MerkelLeaves, MerkleTree, string]
-> {
+): Promise<[EcoTest, EcoID, EcoClaim, MerkelLeaves, MerkleTree, string]> {
   const [eco, ecoID] = await deployEcoID()
-
-  const amount = 1000000000
-
-  const EcoXTest = await ethers.getContractFactory("EcoXTest")
-  const ecoX = await EcoXTest.deploy("EcoX", "EcoX", amount)
-  await ecoX.deployed()
 
   let balancedLeaves: string[]
   if (claims) {
@@ -82,7 +74,6 @@ export async function deployEcoClaim(
   const EcoClaimContract = await ethers.getContractFactory("EcoClaim")
   const claimContract = await EcoClaimContract.deploy(
     eco.address,
-    ecoX.address,
     ecoID.address,
     trustedVerifier.address,
     root,
@@ -91,15 +82,7 @@ export async function deployEcoClaim(
 
   await claimContract.deployed()
   // // @ts-ignore
-  return [
-    eco,
-    ecoX as EcoXTest,
-    ecoID,
-    claimContract as EcoClaim,
-    balancedLeaves,
-    tree,
-    root,
-  ]
+  return [eco, ecoID, claimContract as EcoClaim, balancedLeaves, tree, root]
 }
 
 /**

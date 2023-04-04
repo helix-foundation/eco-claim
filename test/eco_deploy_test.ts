@@ -4,7 +4,7 @@ import { BigNumber } from "ethers"
 import fs from "fs"
 import { ethers } from "hardhat"
 import MerkleTree from "merkletreejs"
-import { EcoClaim, EcoID, EcoTest, EcoXTest } from "../typechain-types"
+import { EcoClaim, EcoID, EcoTest } from "../typechain-types"
 import { deployEcoClaim } from "./utils/fixtures"
 import keccak256 from "keccak256"
 import { ClaimElement } from "../scripts/utils/types"
@@ -27,14 +27,12 @@ const path = require("path")
 describe.skip("Eco Deploy tests", async function () {
   let owner: SignerWithAddress, addr0: SignerWithAddress
   let eco: EcoTest
-  let ecoX: EcoXTest
   let ecoID: EcoID
   let claim: EcoClaim
   let deployedTree: MerkleTree, tree: MerkleTree
-  let ecoXRatio: BigNumber
   const claims: ClaimElement[] = []
 
-  let totalEcoRewarded: BigNumber, totalEcoXRewarded: BigNumber
+  let totalEcoRewarded: BigNumber
   before(async function () {
     const treeFile = path.join(__dirname, "../raw/merkle_tree")
 
@@ -54,13 +52,11 @@ describe.skip("Eco Deploy tests", async function () {
     }
 
     ;[owner, addr0] = await ethers.getSigners()
-    ;[eco, ecoX, ecoID, claim, , tree] = await deployEcoClaim(owner, claims)
-    totalEcoRewarded = BigNumber.from(merkleData.points).mul(10)
-    totalEcoXRewarded = BigNumber.from(merkleData.points).mul(4)
+    ;[eco, ecoID, claim, , tree] = await deployEcoClaim(owner, claims)
+    totalEcoRewarded = BigNumber.from(merkleData.points).mul(
+      await claim.POINTS_MULTIPLIER()
+    )
     await eco.transfer(claim.address, totalEcoRewarded)
-    await ecoX.transfer(claim.address, totalEcoXRewarded)
-
-    ecoXRatio = BigNumber.from((await claim.POINTS_TO_ECOX_RATIO()).toNumber())
   })
 
   it("should match roots between both trees", async function () {
@@ -69,7 +65,6 @@ describe.skip("Eco Deploy tests", async function () {
 
   it("should allow everyone to claim", async function () {
     let originalEcoBalance = await eco.balanceOf(addr0.address)
-    let originalEcoXBalance = await ecoX.balanceOf(addr0.address)
 
     for (let i = 0; i < claims.length; i++) {
       const data = claims[i]
@@ -86,28 +81,22 @@ describe.skip("Eco Deploy tests", async function () {
       const ecoBalance = points.mul(
         BigNumber.from((await claim.POINTS_MULTIPLIER()).toNumber())
       )
-      const ecoXBalance = points.div(ecoXRatio)
+
       await expect(claim.connect(addr0).claimTokens(proof, data.id, points))
         .to.emit(claim, "Claim")
-        .withArgs(data.id, addr0.address, ecoBalance, ecoXBalance)
+        .withArgs(data.id, addr0.address, ecoBalance)
 
       // check balances
       originalEcoBalance = originalEcoBalance.add(ecoBalance)
-      originalEcoXBalance = originalEcoXBalance.add(ecoXBalance)
+
       expect(await eco.balanceOf(addr0.address)).to.equal(originalEcoBalance)
-      expect(await ecoX.balanceOf(addr0.address)).to.equal(originalEcoXBalance)
+
       if (i % 200 === 0) {
         console.log(`Claiming for ${i}`)
         console.log(`Eco ${originalEcoBalance}`)
-        console.log(`EcoX ${originalEcoXBalance}`)
       }
     }
 
-    expect(originalEcoBalance.toString()).to.equal(
-      totalEcoRewarded.div(BigNumber.from(2)) // half the eco should be claimed
-    )
-    expect(originalEcoXBalance.toString()).to.equal(
-      totalEcoXRewarded.div(BigNumber.from(8)) // 1/8 of the ecox should be claimed
-    )
+    expect(originalEcoBalance.toString()).to.equal(totalEcoRewarded.toString()) // all the eco should be claimed
   })
 })
