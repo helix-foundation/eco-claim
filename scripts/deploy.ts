@@ -9,21 +9,26 @@ async function main() {
   const gasPrice = feeData.gasPrice?.mul(13).div(10)
   console.log(`Gas value: ${gasVal} and paying ${gasPrice}`)
 
-  // Deploy EcoID
-  const ecoIDContract = await EcoIDContract.deploy(
-    process.env.ECO_ADDRESS as string,
-    { gasPrice: gasPrice }
-  )
+  let ecoIDAddress = process.env.ECO_ID_ADDRESS 
+  if (ecoIDAddress == undefined) {
+    console.log(`process.env.ECO_ID_ADDRESS not set, deploying new EcoID contract`)
+    // Deploy EcoID
+    const ecoIDContract = await EcoIDContract.deploy(
+      process.env.ECO_ADDRESS as string,
+      { gasPrice: gasPrice }
+    )
 
-  await ecoIDContract.deployed()
-
-  console.log("EcoID Contract deployed to:", ecoIDContract.address)
+    await ecoIDContract.deployed()
+    ecoIDAddress = ecoIDContract.address
+    console.log("EcoID Contract deployed to:", ecoIDAddress)
+  }else{
+    console.log(`using process.env.ECO_ID_ADDRESS set to ${ecoIDAddress}`)
+  }
 
   // Deploy Claim
   const claimContract = await ClaimContract.deploy(
     process.env.ECO_ADDRESS as string,
-    process.env.ECOX_ADDRESS as string,
-    ecoIDContract.address,
+    ecoIDAddress,
     process.env.VERIFIER_ADDRESS as string,
     process.env.CLAWBACK_ADDRESS as string,
     process.env.MERKLE_ROOT as string,
