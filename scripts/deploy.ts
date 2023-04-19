@@ -6,7 +6,7 @@ async function main() {
 
   const feeData = await ethers.provider.getFeeData()
   const gasVal = ethers.utils.formatUnits(feeData.gasPrice!, "wei")
-  const gasPrice = feeData.gasPrice?.mul(13).div(10)
+  const gasPrice = feeData.gasPrice?.mul(105).div(100)
   console.log(`Gas value: ${gasVal} and paying ${gasPrice}`)
 
   let ecoIDAddress = process.env.ECO_ID_ADDRESS 
@@ -33,7 +33,7 @@ async function main() {
     process.env.CLAWBACK_ADDRESS as string,
     process.env.MERKLE_ROOT as string,
     process.env.MERKLE_DEPTH as string,
-    { gasPrice: gasPrice }
+    { gasPrice: gasPrice , gasLimit: 1400000}
   )
 
   await claimContract.deployed()
