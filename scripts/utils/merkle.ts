@@ -129,11 +129,6 @@ export async function parseData(
   files: CsvPointsFile[]
 ): Promise<ClaimElement[]> {
   const fileReadData: ClaimElement[][] = []
-  // get all the csv data into an array
-  files.forEach(async (file: CsvPointsFile) => {
-    fileReadData.push(await loadCsvPointsData(file))
-  })
-
   // read all files into an array
   // using Promise.all to wait for all promises to resolve
   const data = await Promise.all(
@@ -217,7 +212,7 @@ export async function loadCsvPointsData(
       .on("error", (err: any) => reject(err))
       .on("data", (row: any) => {
         const rawPoints = row[1]
-        if (Number.parseInt(rawPoints) > 0) {
+        if (Number.parseFloat(rawPoints) > 0) {
           try {
             data.push({
               id: file.prefix + row[0],
@@ -240,7 +235,7 @@ export async function loadCsvPointsData(
  */
 export function weicofyPoint(rawPoint: string): string {
   const arr = rawPoint.split(".")
-  let decimal = arr[1].substring(0, WEICO_CONSTANT)
+  let decimal = Number.parseInt(arr[1].substring(0, WEICO_CONSTANT)).toString() // truncate to 18 decimal places and then remove any leading zeros with parseInt
 
   if (arr.length !== 2) {
     throw Error("variable not valid : " + rawPoint)
@@ -250,5 +245,7 @@ export function weicofyPoint(rawPoint: string): string {
   if (decimal.length !== WEICO_CONSTANT) {
     throw Error("invalid scaling")
   }
-  return arr[0] + decimal
+  let wholeNumber = Number.parseInt(arr[0]).toString()//remove any leading zeros
+  wholeNumber = wholeNumber == "0" ? "" : "" + wholeNumber // if the whole number is 0, then we don't want to add a 0 to the front of the decimal
+  return wholeNumber + decimal
 }

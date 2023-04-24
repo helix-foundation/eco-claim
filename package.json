@@ -20,7 +20,8 @@
     "lintall:fix": "yarn lint:fix && yarn pretty:fix && yarn sol:fix",
     "format": "yarn lintall:fix",
     "merkle": "npx ts-node scripts/generateMerkle.ts",
-    "unclaimed": "npx ts-node scripts/generateMerkleMigrate.ts"
+    "unclaimed": "npx ts-node scripts/generateMerkleMigrate.ts",
+    "clawbackTime": "hardhat run scripts/clawbackTime.ts --network mainnet"
   },
   "repository": {
     "type": "git",
